@@ -1,0 +1,23 @@
+workflows:
+  - name: init
+    description: Init a new python project
+    steps:
+      - shell:
+          cmd: echo "Creating python project"
+      - template:
+          source: ./main.py
+          dest: main.py
+      - edit_dredgefile:
+          add_workflows:
+            - name: run
+              import:
+                bucket: build
+                workflow: run
+buckets:
+  - name: build
+    workflows:
+      - name: run
+        description: Run the script
+        steps:
+          - shell:
+              cmd: python3 main.py
