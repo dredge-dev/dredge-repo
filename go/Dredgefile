@@ -1,0 +1,129 @@
+runtimes:
+  - name: go-build-container
+    type: container
+    image: golang:{{ .GO_VERSION }}
+    cache:
+      - /go
+    ports:
+      - "{{ .PORTS }}"
+workflows:
+  - name: init
+    description: Init a new Go project
+    inputs:
+      - name: EXECUTABLE
+        description: Name of the executable
+      - name: GO_VERSION
+        description: Go version
+        type: select
+        values:
+          - 1.18
+          - 1.17
+    steps:
+      - shell:
+          cmd: go mod init {{ .EXECUTABLE }}
+          runtime: go-build-container
+      - template:
+          source: ./main.go
+          dest: main.go
+      - template:
+          source: ./main_test.go
+          dest: main_test.go
+      - shell:
+          cmd: mkdir internal
+      - template:
+          input: |
+            .dredge
+            {{ .EXECUTABLE }}
+          dest: .gitignore
+      - template:
+          input: "{{ .GO_VERSION }}"
+          dest: .go-version
+      - edit_dredgefile:
+          add_variables:
+            GO_VERSION: "{{ .GO_VERSION }}"
+            EXECUTABLE: "{{ .EXECUTABLE }}"
+          add_workflows:
+            - name: build
+              import:
+                bucket: build
+                workflow: build
+            - name: test
+              import:
+                bucket: build
+                workflow: test
+            - name: run
+              import:
+                bucket: build
+                workflow: run
+            - name: fmt
+              import:
+                bucket: build
+                workflow: fmt
+          add_buckets:
+            - name: add
+              import:
+                bucket: add
+buckets:
+  - name: build
+    workflows:
+      - name: build
+        description: Build the executable
+        steps:
+          - shell:
+              cmd: go build -o {{ .EXECUTABLE }}
+              runtime: go-build-container
+      - name: test
+        description: Run the tests
+        steps:
+          - shell:
+              cmd: go test ./...
+              runtime: go-build-container
+      - name: run
+        description: Run the executable
+        steps:
+          - shell:
+              cmd: ./{{ .EXECUTABLE }}
+              runtime: go-build-container
+      - name: fmt
+        description: Format the code
+        steps:
+          - shell:
+              cmd: go fmt
+              runtime: go-build-container
+  - name: add
+    workflows:
+      - name: http-server
+        description: Add an http server
+        inputs:
+          - name: HTTP_PORT
+            description: Port for the http server
+        steps:
+          - template:
+              input: |
+                http.HandleFunc("/", root)
+                http.ListenAndServe(":{{ .HTTP_PORT }}", nil)
+              dest: main.go
+              insert:
+                section: func main()
+                placement: end
+          - template:
+              input: |
+                "fmt"
+                "net/http"
+              dest: main.go
+              insert:
+                section: import
+          - template:
+              input: |
+                func root(w http.ResponseWriter, req *http.Request) {
+                  fmt.Fprintf(w, "hello\n")
+                }
+              dest: main.go
+              insert:
+                placement: end
+          - shell:
+              cmd: go fmt
+              runtime: go-build-container
+          - edit_dredgefile:
+              add_variables:
+                PORTS: '{{ join .PORTS .HTTP_PORT "," }}'
