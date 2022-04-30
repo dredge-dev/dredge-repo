@@ -32,9 +32,10 @@ workflows:
           cmd: mkdir internal
       - template:
           input: |
-            .dredge
             {{ .EXECUTABLE }}
           dest: .gitignore
+          insert:
+            placement: unique
       - template:
           input: "{{ .GO_VERSION }}"
           dest: .go-version
