@@ -12,7 +12,7 @@ workflows:
   steps:
   - edit_dredgefile:
       add_variables:
-        GITHUB_ISSUES_URL: '{{ .URL }}'
+        GITHUB_URL: '{{ .URL }}'
       add_buckets:
         - name: issue
           import:
@@ -25,7 +25,7 @@ buckets:
     description: Open the issues ui
     steps:
     - browser:
-        url: '{{ .GITHUB_ISSUES_URL }}'
+        url: '{{ .GITHUB_URL }}/issues'
   - name: list
     description: List the open issues
     steps:
@@ -44,4 +44,3 @@ buckets:
     - shell:
         cmd: gh issue create
         runtime: gh-cli
-
