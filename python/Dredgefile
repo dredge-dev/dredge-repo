@@ -1,6 +1,6 @@
 workflows:
-  - name: init
-    description: Init a new python project
+  - name: setup
+    description: Setup a new python project
     steps:
       - template:
           input: 'print("hello world")'

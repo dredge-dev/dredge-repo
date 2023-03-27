@@ -7,8 +7,8 @@ runtimes:
     ports:
       - "{{ .PORTS }}"
 workflows:
-  - name: init
-    description: Init a new Go project
+  - name: setup
+    description: Setup a new Go project
     inputs:
       - name: EXECUTABLE
         description: Name of the executable
@@ -18,6 +18,17 @@ workflows:
         values:
           - 1.18
           - 1.17
+      - name: PACKAGE_TYPE
+        description: Packaging
+        type: select
+        values:
+          - binary
+          - container
+      - name: CONTAINER_NAME
+        description: Full name of the container (registry/container)
+        skip: "{{ if eq .PACKAGE_TYPE "container" }}false{{ else }}true{{ end }}"
+      - name: VERSION
+        description: Version of the executable
     steps:
       - shell:
           cmd: go mod init {{ .EXECUTABLE }}
@@ -43,6 +54,8 @@ workflows:
           add_variables:
             GO_VERSION: "{{ .GO_VERSION }}"
             EXECUTABLE: "{{ .EXECUTABLE }}"
+            PACKAGE_TYPE: "{{ .PACKAGE_TYPE }}"
+            VERSION: "{{ .VERSION }}"
           add_workflows:
             - name: build
               import:
@@ -60,10 +73,20 @@ workflows:
               import:
                 bucket: build
                 workflow: fmt
+            - name: package
+              import:
+                bucket: build
+                workflow: package
           add_buckets:
             - name: add
               import:
                 bucket: add
+      - if:
+          cond: "{{ if eq .PACKAGE_TYPE "container" }}true{{ else }}false{{ end }}"
+          steps:
+            - edit_dredgefile:
+                add_variables:
+                  CONTAINER_NAME: "{{ .CONTAINER_NAME }}"
 buckets:
   - name: build
     workflows:
@@ -91,6 +114,11 @@ buckets:
           - shell:
               cmd: go fmt
               runtime: go-build-container
+      - name: package
+        description: Package the project
+        steps:
+          - shell:
+              cmd: "docker build . -t {{ .CONTAINER_NAME }}:{{ .VERSION }}"
   - name: add
     workflows:
       - name: http-server
